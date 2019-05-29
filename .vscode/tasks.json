@@ -1,0 +1,36 @@
+{
+	"version": "2.0.0",
+	"command": "gulp",
+	"args": [
+		"--no-color",
+		"--watch"
+	],
+	"tasks": [
+		{
+			"label": "run",
+			"type": "shell",
+			"windows": {
+				"command": "\"C:\\Program Files\\LOVE\\love.exe\" ./src --console"
+			},
+			"group": "test",
+			"presentation": {
+				"reveal": "always", //always | silent
+				"panel": "shared"
+			},
+		},
+		{
+			"label": "launch",
+			"type": "shell",
+			"command": "exit 0",
+			"windows": {
+				"command": "exit 0"
+			},
+			"group": "build",
+			"presentation": {
+				"reveal": "silent",
+				"panel": "shared"
+			},
+			"dependsOn": [ "run" ]
+		}
+	]
+}

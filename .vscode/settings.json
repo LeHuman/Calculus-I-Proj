@@ -1,0 +1,6 @@
+{
+	"files.eol": "\n",
+	"files.encoding": "utf8",
+	"lua.targetVersion": "5.1",
+	"lua.preferLuaCheckErrors": true,
+}
