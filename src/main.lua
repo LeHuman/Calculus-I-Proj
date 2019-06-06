@@ -1,43 +1,25 @@
-local _NULLFUNC = function()
-    return 0
+local _NULLFUNC = function(x)
+    return (math.sin(x + 4) - (x ^ 3)) / 7000
 end
+-- local _NULLFUNC = function()
+--     return nil
+-- end
 local runner = _NULLFUNC
-local setFunc = false
 local shift = false
 local ctrl = false
 local alt = false
 
-local shiftKeys = {
-    ['`'] = '~',
-    ['1'] = '!',
-    ['2'] = '@',
-    ['3'] = '#',
-    ['4'] = '$',
-    ['5'] = '%',
-    ['6'] = '^',
-    ['7'] = '&',
-    ['8'] = '*',
-    ['9'] = '(',
-    ['0'] = ')',
-    ['-'] = '_',
-    ['='] = '+',
-    ['['] = '{',
-    [']'] = '}',
-    ['\\'] = '|',
-    [';'] = ':',
-    ["'"] = '"',
-    [','] = '<',
-    ['.'] = '>',
-    ['/'] = '?'
-}
+local textbox = require 'textBox'
 
 local window = {width = 1000, height = 600}
 local center = {x = window.width / 2, y = window.height / 2}
-local scale = {x = 1, y = 1}
+local scale = {x = 0.25, y = 0.25}
+
+local bounds = {up = 100, low = -100}
 
 local screenPrint = ''
 
-function guiPrint(...)
+local function guiPrint(...)
     local args = {...}
     -- table.insert(args, 1, screenPrint)
     for i = 1, #args do
@@ -47,46 +29,70 @@ function guiPrint(...)
     print(screenPrint)
 end
 
-function love.keypressed(k)
-    if k == 'home' then
-        center = {x = window.width / 2, y = window.height / 2}
-        scale = {x = 1, y = 1}
-    end
-    if k == 'lshift' or k == 'rshift' then
-        shift = true
-    end
-    if k == 'lctrl' or k == 'rctrl' then
-        ctrl = true
-    end
-    if k == 'lalt' or k == 'ralt' then
-        alt = true
-    end
+local function clamp(v, min, max)
+    return math.max(min, math.min(v, max))
+end
 
-    if k == 'f2' then
-        guiPrint('Function Set')
-        setFunction()
-    elseif k == 'f1' then
-        guiPrint([[
-Press any key to begin creating function
----------------------- NOTE! ---------------------------
-implicit multiplication '4x' will not work, it must be '4*x'
-sqrt is just 'sqrt(x)'
-make sure to only use '()'' for parenthesis]])
-        setFunc = ''
-    elseif setFunc then
-        if #k == 1 then
-            if shift then
-                if shiftKeys[k] then
-                    k = shiftKeys[k]
-                end
-                setFunc = setFunc .. string.upper(k)
-            else
-                setFunc = setFunc .. k
-            end
-        elseif k == 'backspace' then
-            setFunc = string.sub(setFunc, 1, #setFunc - 1)
+local rects = {}
+
+local n = 100000
+
+local function calcIntegral()
+    rects = {}
+    local area = 0
+    n = n or 100000
+    print(bounds.low, bounds.up, n)
+    local a = bounds.low
+    local dx = (bounds.up - a) / n
+    table.insert(rects, bounds.low)
+    table.insert(rects, 0)
+    for i = 0, n do
+        local x0 = a + (i - 1) * dx
+        local x1 = a + i * dx
+        local state0, y0 = pcall(runner, x0)
+        local state1, y1 = pcall(runner, x1)
+        if state0 and state1 and type(y0) == 'number' and type(y1) == 'number' then
+            area = area + (((y0 + y1) / 2) * dx)
+        -- table.insert(rects, {x0,0,x0,-y0,x1,-y0,x1,0})
+        table.insert(rects, x0)
+        table.insert(rects, y0)
+        table.insert(rects, x1)
+        table.insert(rects, y1)
         end
-        guiPrint('Setting Function: ' .. setFunc)
+    end
+    table.insert(rects, bounds.up)
+    table.insert(rects, 0)
+    guiPrint('AREA: ' .. area)
+    return area
+end
+
+local d = 1
+
+function love.keypressed(k)
+    if not textbox.isActive() then
+        if k == 'home' then
+            center = {x = window.width / 2, y = window.height / 2}
+            scale = {x = 0.25, y = 0.25}
+        end
+        if k == 'lshift' or k == 'rshift' then
+            shift = true
+        end
+        if k == 'lctrl' or k == 'rctrl' then
+            ctrl = true
+        end
+        if k == 'lalt' or k == 'ralt' then
+            alt = true
+        end
+
+        if k == '-' then
+            scale.y = clamp(scale.y + d, 0.0001, 1000)
+            scale.x = clamp(scale.x + d, 0.0001, 1000)
+        elseif k == '=' then
+            scale.y = clamp(scale.y - d, 0.0001, 1000)
+            scale.x = clamp(scale.x - d, 0.0001, 1000)
+        end
+    else
+        textbox.update(k)
     end
 end
 
@@ -100,10 +106,52 @@ function love.keyreleased(k)
     if k == 'lalt' or k == 'ralt' then
         alt = false
     end
+    if k == 'c' then
+        calcIntegral()
+    end
 end
 
-function setFunction()
-    if not setFunc then
+local function setUpperBound(up)
+    up = loadstring('return ' .. up)
+
+    local state, val = pcall(up)
+    if not state or not val or type(val) ~= 'number' then
+        bounds.up = 0
+        guiPrint('Error Setting Upper Bound!')
+    else
+        bounds.up = val
+        guiPrint('Upper Bound Set!')
+    end
+end
+
+local function setLowerBound(low)
+    low = loadstring('return ' .. low)
+
+    local state, val = pcall(low)
+    if not state or not val or type(val) ~= 'number' then
+        bounds.low = 0
+        guiPrint('Error Setting Lower Bound!')
+    else
+        bounds.low = val
+        guiPrint('Lower Bound Set!')
+    end
+end
+
+local function setNumber(num)
+    num = loadstring('return ' .. num)
+
+    local state, val = pcall(num)
+    if not state or not val or type(val) ~= 'number' then
+        n = 100000
+        guiPrint('Error Setting Number of Blocks!')
+    else
+        n = val
+        guiPrint('Numbers of Blocks Set!')
+    end
+end
+
+function setFunction(func)
+    if not func then
         return
     end
 
@@ -117,9 +165,20 @@ function setFunction()
         local cos = math.cos
         local ln = math.log
         local sqrt = math.sqrt
+        local exp = math.exp
         local abs = math.abs
+        local floor = math.floor
+        local ceil = math.ceil
+        local acos = math.acos
+        local asin = math.asin
+        local atan = math.atan
+        local tanh = math.tanh
+        local sinh = math.sinh
+        local cosh = math.cosh
+        local e = 2.718281
+        local pi = 3.14159265
         return ]] ..
-            setFunc .. ' end'
+            func .. ' end'
     )
 
     local state, error = pcall(runner, 1.5)
@@ -128,12 +187,13 @@ function setFunction()
         print(error)
         guiPrint('Error Setting Function!')
     else
+        guiPrint('Function Set!')
         runner = runner()
-        setFunc = false
     end
 end
 
 function love.mousepressed(x, y, button)
+    textbox.activateTextBox()
 end
 
 function love.mousereleased(_, _, button)
@@ -142,61 +202,120 @@ end
 function love.mousemoved(x, y)
 end
 
-local function clamp(v, min, max)
-    return math.max(min, math.min(v, max))
-end
-
 function love.load()
-    love.graphics.setPointSize(2)
+    love.keyboard.setKeyRepeat(true)
+    love.graphics.setPointSize(5)
+    love.graphics.getLineStyle('smooth')
     love.graphics.setLineWidth(2)
     love.window.setMode(window.width, window.height)
     love.window.setTitle('Mathinator Thing V0.1')
+    textbox.new(8, 20, 300, 25, 'function', setFunction)
+    textbox.new(315, 20, 70, 25, 'upper', setUpperBound)
+    textbox.new(315, 60, 70, 25, 'lower', setLowerBound)
+    textbox.new(392, 20, 80, 25, 'blocks', setNumber)
 end
+
 local linePnts
-function love.update(dt)
+
+function love.update()
     linePnts = {}
-    for x = -1000, 1000 do
-        local y = runner(x)
-        linePnts[#linePnts + 1] = center.x + x / scale.x
-        linePnts[#linePnts + 1] = center.y - y / scale.y
+    for x = -1000 * scale.x, 1000 * scale.x, scale.x do
+        local state, y = pcall(runner, x)
+        if state and type(y) == 'number' then
+            linePnts[#linePnts + 1] = center.x + x / scale.x
+            linePnts[#linePnts + 1] = center.y - y / scale.y
+        end
     end
 
-    local d = shift and 10 or alt and 0.01 or 1
+    d = shift and 10 or alt and scale.x or 1
 
-    if love.keyboard.isDown('up') then
+    if love.keyboard.isDown('down') then
         if ctrl then
             scale.y = clamp(scale.y - d, 0.0001, 1000)
         else
             center.y = center.y - d
         end
     end
-    if love.keyboard.isDown('down') then
+    if love.keyboard.isDown('up') then
         if ctrl then
             scale.y = clamp(scale.y + d, 0.0001, 1000)
         else
             center.y = center.y + d
         end
     end
-    if love.keyboard.isDown('left') then
+    if love.keyboard.isDown('right') then
         if ctrl then
             scale.x = clamp(scale.x - d, 0.0001, 1000)
         else
             center.x = center.x - d
         end
     end
-    if love.keyboard.isDown('right') then
+    if love.keyboard.isDown('left') then
         if ctrl then
             scale.x = clamp(scale.x + d, 0.0001, 1000)
         else
             center.x = center.x + d
         end
     end
+    textbox.update()
 end
 
 function love.draw()
-    love.graphics.print(screenPrint, 10, 10)
+    love.graphics.setColor(1, 1, 1)
+    if #linePnts > 3 then
+        love.graphics.line(linePnts)
+    end
+    love.graphics.setColor(0, 1, 0, 0.25)
+    love.graphics.line(center.x - 1000, center.y, center.x + 1000, center.y)
+    love.graphics.setColor(0, 0, 1, 0.25)
+    love.graphics.line(center.x, center.y - 1000, center.x, center.y + 1000)
+    if #rects ~= 0 and #rects % 2 == 0 then
+        love.graphics.setColor(0.7, 0.7, 0.7, 0.3)
+        love.graphics.translate(center.x, center.y)
+        love.graphics.scale(1/scale.x, 1/scale.y)
+        love.graphics.setLineWidth(0.01)
+        love.graphics.line(rects)
+        love.graphics.setLineWidth(2)
+        love.graphics.origin()
+    end
     love.graphics.setColor(1, 0, 0)
     love.graphics.points(center.x, center.y)
+    love.graphics.setColor(0.5, 0.5, 0.5, 0.25)
+    love.graphics.points(window.width / 2, window.height / 2)
     love.graphics.setColor(1, 1, 1)
-    love.graphics.line(linePnts)
+    love.graphics.print(screenPrint, 8, window.height - 20)
+    textbox.draw()
+    love.graphics.print('Function:', 8, 5)
+    if textbox.isActive('function') then
+        love.graphics.setColor(0.5, 0.5, 0.5, 0.25)
+        love.graphics.rectangle('fill', 8, 50, 200, 310)
+        love.graphics.setColor(1, 1, 1)
+        -- love.graphics.print('  -----Constants-----\ne = euler\'s constant\npi = pi constant', 20, 50)
+        love.graphics.print(
+            [[
+--Functions--
+log(x) = log base 10
+ln(x) = log base e
+sqrt(x) = square root
+exp(x) = e^x
+abs(x) = absolute value
+floor(x) = round down
+ceil(x) = round up
+tan(x) = tangent
+sin(x) = sine
+cos(x) = cosine
+acos(x) = arc cosine
+asin(x) = arc sine
+atan(x) = arc tangent
+tanh(x) = hyperbolic tangent
+sinh(x) = hyperbolic sine
+cosh(x) = hyperbolic cosine
+
+--Constants--
+e = 2.718281
+pi = 3.14159265]],
+            24,
+            55
+        )
+    end
 end
