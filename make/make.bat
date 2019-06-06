@@ -1,0 +1,1 @@
+copy /b love.exe+noPlz.love Runner.exe
