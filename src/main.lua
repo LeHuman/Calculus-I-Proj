@@ -12,9 +12,9 @@ local function Memoize(f)
 end
 
 local _NULLFUNC = function(x)
-    return (math.sin(x + 4) - (x ^ 3)) / 7000
+    -- return nil
+    return x ^ 2
 end
-_NULLFUNC = Memoize(_NULLFUNC)
 
 local runner = _NULLFUNC
 local shift = false
@@ -23,11 +23,19 @@ local alt = false
 
 local textbox = require 'textBox'
 
-local window = {width = 1000, height = 600}
+local window = {
+    width = 1000,
+    height = 600,
+    minX = -10,
+    maxX = 10,
+    minY = -10,
+    maxY = 10
+}
+
 local center = {x = window.width / 2, y = window.height / 2}
 local scale = {x = 0.25, y = 0.25}
 
-local bounds = {low = -120, up = 50}
+local bounds = {low = 0, up = 0}
 
 local screenPrint = ''
 
@@ -38,6 +46,51 @@ local function guiPrint(...)
     end
     screenPrint = table.concat(args, '\t') .. '\r\n'
     print(screenPrint)
+end
+
+local function string2Num(s, err, succ)
+    s = loadstring('return ' .. s)
+
+    local state, val = pcall(s)
+    if not state or not val or type(val) ~= 'number' then
+        guiPrint(err)
+        return 0
+    else
+        guiPrint(succ)
+        return val
+    end
+end
+
+local function setWindowX()
+    center.x = (window.maxX - window.minX) / 2 + window.width / 2
+    print(center.x)
+    scale.x = (window.maxX - window.minX) / window.width
+end
+
+local function setWindowY()
+    center.y = -(window.maxY + window.minY) / 2 + window.width / 2
+    scale.y = (window.maxY - window.minY) / window.height
+end
+
+local function setMaxX(num)
+    num = string2Num(num, 'Error Setting Max Window X!', 'Max Window X Set!')
+    window.maxX = num ~= 0 and num or 0.001
+    setWindowX()
+end
+local function setMaxY(num)
+    num = string2Num(num, 'Error Setting Max Window Y!', 'Max Window Y Set!')
+    window.maxY = num ~= 0 and num or 0.001
+    setWindowY()
+end
+local function setMinX(num)
+    num = string2Num(num, 'Error Setting Min Window X!', 'Min Window X Set!')
+    window.minX = num ~= 0 and num or -0.001
+    setWindowX()
+end
+local function setMinY(num)
+    num = string2Num(num, 'Error Setting Min Window Y!', 'Min Window Y Set!')
+    window.minY = num ~= 0 and num or -0.001
+    setWindowY()
 end
 
 local function clamp(v, min, max)
@@ -51,7 +104,6 @@ local n = 10000000
 local function calcIntegral()
     rects = {}
     local area = 0
-    print(bounds.low, bounds.up, n)
     local a = bounds.low
     local dx = (bounds.up - a) / n
     for i = 0, n do
@@ -63,7 +115,7 @@ local function calcIntegral()
             area = area + (((y0 + y1) / 2) * dx)
             if n <= 1000 then
                 table.insert(rects, {x0, 0, x0, -y0, x1, -y1, x1, 0})
-            elseif i % math.floor(n/1000) == 0 then
+            elseif i % math.floor(n / 1000) == 0 then
                 table.insert(rects, {x0, 0, x0, -y0, x1, -y0, x1, 0})
             end
         end
@@ -90,15 +142,19 @@ function love.keypressed(k)
             alt = true
         end
 
-        if k == '-' then
+        if k == '-' or k == 'kp-' then
             scale.y = clamp(scale.y + d, 0.0001, 1000)
             scale.x = clamp(scale.x + d, 0.0001, 1000)
-        elseif k == '=' then
+        elseif k == '=' or k == 'kp+' then
             scale.y = clamp(scale.y - d, 0.0001, 1000)
             scale.x = clamp(scale.x - d, 0.0001, 1000)
         end
     else
-        textbox.update(k)
+        if string.sub(k, 1, 2) == 'kp' then
+            textbox.update(string.sub(k, 3))
+        else
+            textbox.update(k)
+        end
     end
 end
 
@@ -118,29 +174,11 @@ function love.keyreleased(k)
 end
 
 local function setUpperBound(up)
-    up = loadstring('return ' .. up)
-
-    local state, val = pcall(up)
-    if not state or not val or type(val) ~= 'number' then
-        bounds.up = 0
-        guiPrint('Error Setting Upper Bound!')
-    else
-        bounds.up = val
-        guiPrint('Upper Bound Set!')
-    end
+    bounds.up = string2Num(up, 'Error Setting Upper Bound!', 'Upper Bound Set!')
 end
 
 local function setLowerBound(low)
-    low = loadstring('return ' .. low)
-
-    local state, val = pcall(low)
-    if not state or not val or type(val) ~= 'number' then
-        bounds.low = 0
-        guiPrint('Error Setting Lower Bound!')
-    else
-        bounds.low = val
-        guiPrint('Lower Bound Set!')
-    end
+    bounds.low = string2Num(low, 'Error Setting Lower Bound!', 'Lower Bound Set!')
 end
 
 local function setNumber(num)
@@ -216,51 +254,56 @@ function love.load()
     love.window.setMode(window.width, window.height)
     love.window.setTitle('Mathinator Thing V0.1')
     textbox.new(8, 20, 300, 25, 'function', setFunction)
-    textbox.new(315, 20, 70, 25, 'upper', setUpperBound)
-    textbox.new(315, 60, 70, 25, 'lower', setLowerBound)
-    textbox.new(392, 20, 80, 25, 'blocks', setNumber)
+    textbox.new(315, 20, 90, 25, 'upper', setUpperBound)
+    textbox.new(315, 60, 90, 25, 'lower', setLowerBound)
+    textbox.new(412, 20, 120, 25, 'blocks', setNumber)
+    textbox.new(540, 20, 120, 25, 'MaxX', setMaxX)
+    textbox.new(540, 60, 120, 25, 'MaxY', setMaxY)
+    textbox.new(540, 102, 120, 25, 'MinX', setMinX)
+    textbox.new(540, 145, 120, 25, 'MinY', setMinY)
 end
 
 local linePnts
 
 function love.update()
     linePnts = {}
-    for x = -1000 * scale.x, 1000 * scale.x, scale.x do
+    local dx = window.width / 2 - center.x
+    for x = (dx - 1000) * scale.x, (dx + 1000) * scale.x, scale.x do
         local state, y = pcall(runner, x)
         if state and type(y) == 'number' then
             linePnts[#linePnts + 1] = center.x + x / scale.x
             linePnts[#linePnts + 1] = center.y - y / scale.y
         end
     end
-    local scl = math.sqrt(scale.x^2 + scale.y^2)
+    local scl = math.sqrt(scale.x ^ 2 + scale.y ^ 2)
     d = shift and scl * 10 or alt and 0.01 * scl or scl
 
     if love.keyboard.isDown('down') then
         if ctrl then
             scale.y = clamp(scale.y - d, 0.0001, 1000)
         else
-            center.y = center.y - d
+            center.y = center.y - clamp(d, 0.01, 5)
         end
     end
     if love.keyboard.isDown('up') then
         if ctrl then
             scale.y = clamp(scale.y + d, 0.0001, 1000)
         else
-            center.y = center.y + d
+            center.y = center.y + clamp(d, 0.01, 5)
         end
     end
     if love.keyboard.isDown('right') then
         if ctrl then
             scale.x = clamp(scale.x - d, 0.0001, 1000)
         else
-            center.x = center.x - d
+            center.x = center.x - clamp(d, 0.01, 5)
         end
     end
     if love.keyboard.isDown('left') then
         if ctrl then
             scale.x = clamp(scale.x + d, 0.0001, 1000)
         else
-            center.x = center.x + d
+            center.x = center.x + clamp(d, 0.01, 5)
         end
     end
     textbox.update()
@@ -271,9 +314,9 @@ function love.draw()
     if #linePnts > 3 then
         love.graphics.line(linePnts)
     end
-    love.graphics.setColor(0, 1, 0, 0.25)
+    love.graphics.setColor(0, 1, 0.5, 0.25)
     love.graphics.line(center.x - 1000, center.y, center.x + 1000, center.y)
-    love.graphics.setColor(0, 0, 1, 0.25)
+    love.graphics.setColor(0.5, 0, 1, 0.25)
     love.graphics.line(center.x, center.y - 1000, center.x, center.y + 1000)
 
     love.graphics.setColor(0.7, 0.7, 0.7, 0.3)
@@ -296,6 +339,9 @@ function love.draw()
     love.graphics.print(screenPrint, 8, window.height - 20)
     textbox.draw()
     love.graphics.print('Function:', 8, 5)
+    love.graphics.print('Upper Bound:', 315, 5)
+    love.graphics.print('Lower Bound:', 315, 45)
+    love.graphics.print('Num of Blocks:', 412, 5)
     if textbox.isActive('function') then
         love.graphics.setColor(0.5, 0.5, 0.5, 0.25)
         love.graphics.rectangle('fill', 8, 50, 200, 310)
@@ -354,7 +400,7 @@ function love.run()
 
         -- Call update and draw
         love.update(dt)
-         -- will pass 0 if love.timer is disabled
+        -- will pass 0 if love.timer is disabled
 
         love.graphics.origin()
         love.graphics.clear(love.graphics.getBackgroundColor())
@@ -363,8 +409,6 @@ function love.run()
 
         love.graphics.present()
 
-        if love.timer then
-            love.timer.sleep(0.001)
-        end
+        love.timer.sleep(0.0001)
     end
 end
