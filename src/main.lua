@@ -1,9 +1,21 @@
+local function Memoize(f)
+    local mem = {} -- memoizing table
+    setmetatable(mem, {__mode = 'kv'}) -- make it weak
+    return function(x) -- new version of ’f’, with memoizing
+        local r = mem[x]
+        if r == nil then -- no previous result?
+            r = f(x) -- calls original function
+            mem[x] = r -- store result for reuse
+        end
+        return r
+    end
+end
+
 local _NULLFUNC = function(x)
     return (math.sin(x + 4) - (x ^ 3)) / 7000
 end
--- local _NULLFUNC = function()
---     return nil
--- end
+_NULLFUNC = Memoize(_NULLFUNC)
+
 local runner = _NULLFUNC
 local shift = false
 local ctrl = false
@@ -15,13 +27,12 @@ local window = {width = 1000, height = 600}
 local center = {x = window.width / 2, y = window.height / 2}
 local scale = {x = 0.25, y = 0.25}
 
-local bounds = {up = 100, low = -100}
+local bounds = {low = -120, up = 50}
 
 local screenPrint = ''
 
 local function guiPrint(...)
     local args = {...}
-    -- table.insert(args, 1, screenPrint)
     for i = 1, #args do
         args[i] = tostring(args[i])
     end
@@ -35,33 +46,28 @@ end
 
 local rects = {}
 
-local n = 100000
+local n = 10000000
 
 local function calcIntegral()
     rects = {}
     local area = 0
-    n = n or 100000
     print(bounds.low, bounds.up, n)
     local a = bounds.low
     local dx = (bounds.up - a) / n
-    table.insert(rects, bounds.low)
-    table.insert(rects, 0)
     for i = 0, n do
         local x0 = a + (i - 1) * dx
         local x1 = a + i * dx
         local state0, y0 = pcall(runner, x0)
         local state1, y1 = pcall(runner, x1)
-        if state0 and state1 and type(y0) == 'number' and type(y1) == 'number' then
+        if state0 and state1 then
             area = area + (((y0 + y1) / 2) * dx)
-        -- table.insert(rects, {x0,0,x0,-y0,x1,-y0,x1,0})
-        table.insert(rects, x0)
-        table.insert(rects, y0)
-        table.insert(rects, x1)
-        table.insert(rects, y1)
+            if n <= 1000 then
+                table.insert(rects, {x0, 0, x0, -y0, x1, -y1, x1, 0})
+            elseif i % math.floor(n/1000) == 0 then
+                table.insert(rects, {x0, 0, x0, -y0, x1, -y0, x1, 0})
+            end
         end
     end
-    table.insert(rects, bounds.up)
-    table.insert(rects, 0)
     guiPrint('AREA: ' .. area)
     return area
 end
@@ -142,10 +148,10 @@ local function setNumber(num)
 
     local state, val = pcall(num)
     if not state or not val or type(val) ~= 'number' then
-        n = 100000
+        n = 10000000
         guiPrint('Error Setting Number of Blocks!')
     else
-        n = val
+        n = math.min(val, 10000000)
         guiPrint('Numbers of Blocks Set!')
     end
 end
@@ -188,7 +194,7 @@ function setFunction(func)
         guiPrint('Error Setting Function!')
     else
         guiPrint('Function Set!')
-        runner = runner()
+        runner = Memoize(runner())
     end
 end
 
@@ -226,8 +232,8 @@ function love.update()
             linePnts[#linePnts + 1] = center.y - y / scale.y
         end
     end
-
-    d = shift and 10 or alt and scale.x or 1
+    local scl = math.sqrt(scale.x^2 + scale.y^2)
+    d = shift and scl * 10 or alt and 0.01 * scl or scl
 
     if love.keyboard.isDown('down') then
         if ctrl then
@@ -269,15 +275,19 @@ function love.draw()
     love.graphics.line(center.x - 1000, center.y, center.x + 1000, center.y)
     love.graphics.setColor(0, 0, 1, 0.25)
     love.graphics.line(center.x, center.y - 1000, center.x, center.y + 1000)
-    if #rects ~= 0 and #rects % 2 == 0 then
-        love.graphics.setColor(0.7, 0.7, 0.7, 0.3)
-        love.graphics.translate(center.x, center.y)
-        love.graphics.scale(1/scale.x, 1/scale.y)
-        love.graphics.setLineWidth(0.01)
-        love.graphics.line(rects)
-        love.graphics.setLineWidth(2)
-        love.graphics.origin()
+
+    love.graphics.setColor(0.7, 0.7, 0.7, 0.3)
+    love.graphics.translate(center.x, center.y)
+    love.graphics.scale(1 / scale.x, 1 / scale.y)
+    love.graphics.setLineWidth(0.01)
+
+    for _, rect in pairs(rects) do
+        love.graphics.line(rect)
     end
+
+    love.graphics.setLineWidth(2)
+    love.graphics.origin()
+
     love.graphics.setColor(1, 0, 0)
     love.graphics.points(center.x, center.y)
     love.graphics.setColor(0.5, 0.5, 0.5, 0.25)
@@ -290,7 +300,6 @@ function love.draw()
         love.graphics.setColor(0.5, 0.5, 0.5, 0.25)
         love.graphics.rectangle('fill', 8, 50, 200, 310)
         love.graphics.setColor(1, 1, 1)
-        -- love.graphics.print('  -----Constants-----\ne = euler\'s constant\npi = pi constant', 20, 50)
         love.graphics.print(
             [[
 --Functions--
@@ -317,5 +326,45 @@ pi = 3.14159265]],
             24,
             55
         )
+    end
+end
+
+function love.run()
+    love.load(love.arg.parseGameArguments(arg), arg)
+    -- We don't want the first frame's dt to include time taken by love.load.
+    love.timer.step()
+
+    local dt = 0
+
+    -- Main loop time.
+    return function()
+        -- Process events.
+        love.event.pump()
+        for name, a, b, c, d, e, f in love.event.poll() do
+            if name == 'quit' then
+                if not love.quit or not love.quit() then
+                    return a or 0
+                end
+            end
+            love.handlers[name](a, b, c, d, e, f)
+        end
+
+        -- Update dt, as we'll be passing it to update
+        dt = love.timer.step()
+
+        -- Call update and draw
+        love.update(dt)
+         -- will pass 0 if love.timer is disabled
+
+        love.graphics.origin()
+        love.graphics.clear(love.graphics.getBackgroundColor())
+
+        love.draw()
+
+        love.graphics.present()
+
+        if love.timer then
+            love.timer.sleep(0.001)
+        end
     end
 end
