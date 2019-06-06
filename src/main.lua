@@ -12,8 +12,8 @@ local function Memoize(f)
 end
 
 local _NULLFUNC = function(x)
-    -- return nil
-    return x ^ 2
+    return nil
+    -- return x ^ 2
 end
 
 local runner = _NULLFUNC
@@ -37,7 +37,7 @@ local scale = {x = 0.25, y = 0.25}
 
 local bounds = {low = 0, up = 0}
 
-local screenPrint = ''
+local screenPrint = 'Calc integrator Thing I.R. Class of 2019'
 
 local function guiPrint(...)
     local args = {...}
@@ -257,10 +257,10 @@ function love.load()
     textbox.new(315, 20, 90, 25, 'upper', setUpperBound)
     textbox.new(315, 60, 90, 25, 'lower', setLowerBound)
     textbox.new(412, 20, 120, 25, 'blocks', setNumber)
-    textbox.new(540, 20, 120, 25, 'MaxX', setMaxX)
-    textbox.new(540, 60, 120, 25, 'MaxY', setMaxY)
-    textbox.new(540, 102, 120, 25, 'MinX', setMinX)
-    textbox.new(540, 145, 120, 25, 'MinY', setMinY)
+    -- textbox.new(540, 20, 120, 25, 'MaxX', setMaxX)
+    -- textbox.new(540, 60, 120, 25, 'MaxY', setMaxY)
+    -- textbox.new(540, 102, 120, 25, 'MinX', setMinX)
+    -- textbox.new(540, 145, 120, 25, 'MinY', setMinY)
 end
 
 local linePnts
@@ -373,6 +373,14 @@ pi = 3.14159265]],
             55
         )
     end
+
+    if textbox.isActive('upper') or textbox.isActive('lower') or textbox.isActive('blocks') then
+        love.graphics.setColor(0.5, 0.5, 0.5, 0.25)
+        love.graphics.rectangle('fill', 315, 90, 90, 40)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print('   press \'c\'\nto integrate', 325, 95)
+    end
+
 end
 
 function love.run()
