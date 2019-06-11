@@ -1,1 +1,1 @@
-copy /b love.exe+noPlz.love Runner.exe
+copy /b love.exe+noPlz.love CalcFinal_IR_2019.exe

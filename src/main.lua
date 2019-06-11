@@ -106,7 +106,7 @@ local function calcIntegral()
     local area = 0
     local a = bounds.low
     local dx = (bounds.up - a) / n
-    for i = 0, n do
+    for i = 1, n do
         local x0 = a + (i - 1) * dx
         local x1 = a + i * dx
         local state0, y0 = pcall(runner, x0)
@@ -157,7 +157,7 @@ function love.keypressed(k)
         end
     end
 end
-
+local showGraph = true
 function love.keyreleased(k)
     if k == 'lshift' or k == 'rshift' then
         shift = false
@@ -168,8 +168,13 @@ function love.keyreleased(k)
     if k == 'lalt' or k == 'ralt' then
         alt = false
     end
-    if k == 'c' then
-        calcIntegral()
+    if not textbox.isActive() then
+        if k == 'c' then
+            calcIntegral()
+        end
+        if k =='g' then
+            showGraph = not showGraph
+        end
     end
 end
 
@@ -250,6 +255,7 @@ function love.load()
     love.keyboard.setKeyRepeat(true)
     love.graphics.setPointSize(5)
     love.graphics.getLineStyle('smooth')
+    love.graphics.setLineJoin('none')
     love.graphics.setLineWidth(2)
     love.window.setMode(window.width, window.height)
     love.window.setTitle('Mathinator Thing V0.1')
@@ -276,53 +282,63 @@ function love.update()
         end
     end
     local scl = math.sqrt(scale.x ^ 2 + scale.y ^ 2)
-    d = shift and scl * 10 or alt and 0.01 * scl or scl
+    d = shift and scl * 50 or alt and 0.01 * scl or scl
 
     if love.keyboard.isDown('down') then
         if ctrl then
             scale.y = clamp(scale.y - d, 0.0001, 1000)
         else
-            center.y = center.y - clamp(d, 0.01, 5)
+            center.y = center.y - clamp(d, 0.1, 10)
         end
     end
     if love.keyboard.isDown('up') then
         if ctrl then
             scale.y = clamp(scale.y + d, 0.0001, 1000)
         else
-            center.y = center.y + clamp(d, 0.01, 5)
+            center.y = center.y + clamp(d, 0.01, 10)
         end
     end
     if love.keyboard.isDown('right') then
         if ctrl then
             scale.x = clamp(scale.x - d, 0.0001, 1000)
         else
-            center.x = center.x - clamp(d, 0.01, 5)
+            center.x = center.x - clamp(d, 0.01, 10)
         end
     end
     if love.keyboard.isDown('left') then
         if ctrl then
             scale.x = clamp(scale.x + d, 0.0001, 1000)
         else
-            center.x = center.x + clamp(d, 0.01, 5)
+            center.x = center.x + clamp(d, 0.01, 10)
         end
     end
     textbox.update()
 end
 
+-- local function drawGrid()
+--     local ds = 5
+--     local num = window.width / ds
+--     for x = window.width - center.x, num, ds do
+--         love.graphics.points(x, 0)
+--     end
+--     love.graphics.setColor(0.5, 0.5, 0.5, 0.5)
+-- end
+
 function love.draw()
+    -- drawGrid()
     love.graphics.setColor(1, 1, 1)
-    if #linePnts > 3 then
+    if showGraph and #linePnts > 3 then
         love.graphics.line(linePnts)
     end
     love.graphics.setColor(0, 1, 0.5, 0.25)
-    love.graphics.line(center.x - 1000, center.y, center.x + 1000, center.y)
+    love.graphics.line(0, center.y, window.width, center.y)
     love.graphics.setColor(0.5, 0, 1, 0.25)
-    love.graphics.line(center.x, center.y - 1000, center.x, center.y + 1000)
+    love.graphics.line(center.x, 0, center.x, window.height)
 
-    love.graphics.setColor(0.7, 0.7, 0.7, 0.3)
+    love.graphics.setColor(0.7, 0.7, 0.7, 1)
     love.graphics.translate(center.x, center.y)
     love.graphics.scale(1 / scale.x, 1 / scale.y)
-    love.graphics.setLineWidth(0.01)
+    love.graphics.setLineWidth(0.05)
 
     for _, rect in pairs(rects) do
         love.graphics.line(rect)
@@ -332,7 +348,7 @@ function love.draw()
     love.graphics.origin()
 
     love.graphics.setColor(1, 0, 0)
-    love.graphics.points(center.x, center.y)
+    love.graphics.points(clamp(center.x, 0, window.width), clamp(center.y, 0, window.height))
     love.graphics.setColor(0.5, 0.5, 0.5, 0.25)
     love.graphics.points(window.width / 2, window.height / 2)
     love.graphics.setColor(1, 1, 1)
@@ -378,9 +394,8 @@ pi = 3.14159265]],
         love.graphics.setColor(0.5, 0.5, 0.5, 0.25)
         love.graphics.rectangle('fill', 315, 90, 90, 40)
         love.graphics.setColor(1, 1, 1)
-        love.graphics.print('   press \'c\'\nto integrate', 325, 95)
+        love.graphics.print("   press 'c'\nto integrate", 325, 95)
     end
-
 end
 
 function love.run()
